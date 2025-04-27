@@ -73,7 +73,6 @@ function loadNewMeme() {
     animateNewCard(card);
   } else {
     fetchMemeFromAI().then(meme => {
-      // Используем imageUrl напрямую из GCS
       img.src = meme.imageUrl;
       title.textContent = meme.title || `AI Meme #${currentMemeId}`;
       const memeId = 100 + currentMemeId; 
@@ -92,9 +91,10 @@ function loadNewMeme() {
       toast('Could not load AI meme, showing you a curated one instead', 'warning');
     });
     shownMemesCount++;
+
+
   }
 }
-
 function animateNewCard(card) {
   gsap.fromTo(card, 
     { opacity:0, scale:0.9 }, 
@@ -124,16 +124,8 @@ async function fetchMemeFromAI() {
     if (data.error) {
       throw new Error(data.error);
     }
-    
-    // Проверка, является ли URL полным или относительным
-    let imageUrl = data.imageUrl;
-    if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('https')) {
-      // Если относительный, преобразуем в полный
-      imageUrl = window.location.origin + imageUrl;
-    }
-    
     return {
-      imageUrl: imageUrl,
+      imageUrl: data.imageUrl,
       title: data.title || `AI Meme #${currentMemeId}`
     };
   } catch (error) {
@@ -260,7 +252,7 @@ function likeMeme() {
   const memeId = memeCard.getAttribute('data-id');
   const img = memeCard.querySelector('.meme-image');
 
-  // Берем URL напрямую из атрибута или из src
+
   const imageUrl = memeCard.getAttribute('data-image-url') || img.src;
   const title = document.getElementById('meme-title').textContent;
   fetch('/api/memes/action', {
@@ -294,11 +286,12 @@ function likeMeme() {
   });
 }
 
+
+
 function dislikeMeme() { 
   const memeCard = document.getElementById('current-meme');
   const memeId = memeCard.getAttribute('data-id');
   const img = memeCard.querySelector('.meme-image');
-  // Берем URL напрямую из атрибута или из src
   const imageUrl = memeCard.getAttribute('data-image-url') || img.src;
   const title = document.getElementById('meme-title').textContent;
   fetch('/api/memes/action', {
@@ -326,6 +319,11 @@ function dislikeMeme() {
   .finally(() => {
     loadNewMeme();
   });
+
+
+
+
+
 }
 
 function saveMeme() {
@@ -341,7 +339,6 @@ function saveMeme() {
   saveButton.disabled = true;
   
   const img = memeCard.querySelector('.meme-image');
-  // Берем URL напрямую из атрибута или из src
   const imageUrl = memeCard.getAttribute('data-image-url') || img.src;
   const title = document.getElementById('meme-title').textContent;
   fetch('/api/favorites/' + memeId, {
@@ -474,6 +471,10 @@ function showMatchScreen() {
   );
 }
 
+
+
+
+
 function createConfetti(container) {
   const confettiWrapper = document.createElement('div');
   confettiWrapper.className = 'confetti-container';
@@ -511,6 +512,8 @@ function createConfetti(container) {
       }
     );
     confettiWrapper.appendChild(confetti);
+
+
   }
 
   container.appendChild(confettiWrapper);
@@ -534,6 +537,9 @@ function displayUserMatches() {
     `;
     container.appendChild(emptyState);
     return;
+
+
+
   }
   
   window.userMatches.forEach((user, index) => {
@@ -558,6 +564,7 @@ function displayUserMatches() {
     );
   });
 }
+
 
 function createUserCard(user) {
   const card = document.createElement('div');
