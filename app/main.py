@@ -19,13 +19,6 @@ from flask import current_app
 
 UPLOAD_FOLDER = 'static/generated'
 
-@main.route('/create_tables')
-def create_tables():
-    with current_app.app_context():
-        db.create_all()
-    return "✅ Tables created successfully!"
-
-
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
