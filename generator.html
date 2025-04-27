@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+ 
+  .meme-container {
+    position: relative;
+    text-align: center;
+    margin-top: 2rem;
+    margin-bottom: 50px; 
+    display: none;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .meme-text {
+    position: absolute;
+    bottom: 10px;
+    left: 0;
+    right: 0;
+    color: white;
+    font-size: 24px;
+    font-weight: bold;
+    text-shadow: 2px 2px 2px black;
+    padding: 0 10px;
+  }
+  .meme-image {
+    max-width: 100%;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    max-height: 500px;
+  }
+  .loading {
+    display: none;
+    text-align: center;
+    margin-top: 2rem;
+  }
+  .card-meme {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  .buttons-container {
+    margin-top: 50px; 
+    padding-top: 20px;
+  }
+  
+  .custom-btn-1 {
+    width: 250px; 
+    background-color: #c49b06cc; 
+    border-radius: 20px;
+    text-decoration: none !important; 
+    box-shadow: 0 4px 12px rgba(55, 16, 211, 0.3);
+    padding: 12px 30px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    transition: all 0.3s ease;
+    margin: 5px 0;
+    color: white;
+    display: inline-block;
+    text-align: center;
+    border: none;
+    cursor: pointer;
+  }
+  .custom-btn-1:hover{
+    background-color: #7124b4;
+    color: white;
+  }
+
+  .custom-btn-2{
+    width: 250px; 
+    background-color: #444444; 
+    border-radius: 20px;
+    text-decoration: none !important; 
+    box-shadow: 0 4px 12px rgba(55, 16, 211, 0.3);
+    padding: 12px 30px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    transition: all 0.3s ease;
+    margin: 5px 0;
+    color: white;
+    display: inline-block;
+    text-align: center;
+    border: none;
+    cursor: pointer;
+  }
+ 
+  .custom-btn-2:hover{
+    background-color: #7124b4;
+    color: white;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <div class="card card-meme">
+      <div class="card-header bg-dark text-white">
+        <h2 class="h4 mb-0">AI Meme Generator</h2>
+      </div>
+      <div class="card-body">
+        <form id="memeForm">
+          <div class="mb-3">
+            <label for="situation" class="form-label">Describe a situation:</label>
+            <textarea class="form-control" id="situation" rows="4" placeholder="Pulled all night to finish the course assignment and slept 5 min before the deadline" required></textarea>
+          </div>
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary w-100">
+              Generate Meme
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <div class="loading" id="loadingSpinner">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-2">Generating meme...</p>
+    </div>
+    
+    <div class="meme-container" id="memeResult">
+      <img src="" alt="Meme" class="meme-image" id="memeImage">
+      <div class="meme-text" id="memeText"></div>
+    </div>
+
+    <div class="buttons-container">
+      <div class="d-flex flex-column flex-md-row justify-content-center gap-3 mt-4">
+        <button class="custom-btn-1" id="downloadBtn">Download Meme</button>
+        <button class="custom-btn-2" id="uploadBtn">Get Share Link</button>
+      </div>
+    </div>
+    
+    <div class="mt-3" id="shareLinkContainer" style="display:none;">
+      <div class="alert alert-success">
+        <strong>Your Meme Link:</strong> <br>
+        <a href="#" id="shareLink" target="_blank"></a>
+        <button class="btn btn-sm btn-outline-dark mt-2" id="copyLinkBtn">Copy Link</button>
+      </div>
+    </div>
+    
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const memeForm = document.getElementById('memeForm');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const memeResult = document.getElementById('memeResult');
+    const memeImage = document.getElementById('memeImage');
+    const memeText = document.getElementById('memeText');
+
+    memeForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const situation = document.getElementById('situation').value.trim();
+      if (!situation) return;
+
+      
+      loadingSpinner.style.display = 'block';
+      memeResult.style.display = 'none';
+      
+      fetch('/generate_meme', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ situation: situation })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.json();
+      })
+      .then(data => {
+        memeImage.src = data.photo_url;
+        memeText.textContent = data.caption;
+        
+        loadingSpinner.style.display = 'none';
+        memeResult.style.display = 'block';
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        loadingSpinner.style.display = 'none';
+        alert('Something went wrong! Please try again.');
+      });
+    });
+ 
+    const downloadBtn = document.getElementById('downloadBtn');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const shareLinkContainer = document.getElementById('shareLinkContainer');
+    const shareLink = document.getElementById('shareLink');
+    const copyLinkBtn = document.getElementById('copyLinkBtn');
+
+    downloadBtn.addEventListener('click', function() {
+      html2canvas(memeResult).then(function(canvas) {
+        const link = document.createElement('a');
+        link.download = 'meme.png';
+        link.href = canvas.toDataURL();
+        link.click();
+      });
+    });
+
+    uploadBtn.addEventListener('click', function() {
+      html2canvas(memeResult).then(function(canvas) {
+        canvas.toBlob(function(blob) {
+          const formData = new FormData();
+          formData.append('meme', blob, 'meme.png');
+
+          fetch('/upload_meme', {
+            method: 'POST',
+            body: formData
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.meme_url) {
+              shareLink.href = data.meme_url;
+              shareLink.textContent = data.meme_url;
+              shareLinkContainer.style.display = 'block';
+            } else {
+              alert('Failed to upload meme.');
+            }
+          })
+          .catch(error => {
+            console.error('Upload error:', error);
+            alert('Error uploading meme.');
+          });
+        });
+      });
+    });
+
+    copyLinkBtn.addEventListener('click', function() {
+      const text = shareLink.href;
+      navigator.clipboard.writeText(text)
+        .then(() => {
+          alert('Link copied to clipboard!');
+        })
+        .catch((error) => {
+          console.error('Copy error:', error);
+        });
+    });
+  });
+</script>
+{% endblock %}
