@@ -19,7 +19,7 @@ from flask import current_app
 
 UPLOAD_FOLDER = 'static/generated'
 
-@app.route('/create_tables')
+@main.route('/create_tables')
 def create_tables():
     with current_app.app_context():
         db.create_all()
