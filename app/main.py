@@ -17,7 +17,7 @@ import openai
 import uuid
 from flask import current_app
 
-UPLOAD_FOLDER = 'static/generated'
+UPLOAD_FOLDER = '/tmp/generated'
 
 load_dotenv()
 
@@ -209,7 +209,7 @@ def batch_generate_memes():
                     
                     if image_data:
                         image_filename = f"ai_meme_{int(time.time())}_{_}.png"
-                        save_path = os.path.join('app', 'static', 'generated', image_filename)
+                        save_path = os.path.join('/tmp/generated', image_filename)
                         
                         os.makedirs(os.path.dirname(save_path), exist_ok=True)
                         
@@ -620,3 +620,7 @@ def upload_meme():
     meme_url = request.host_url.rstrip('/') + relative_path
 
     return jsonify({'meme_url': meme_url})
+
+@main.route('/uploads/<filename>')
+def serve_uploaded_meme(filename):
+    return send_from_directory('/tmp/generated', filename)
