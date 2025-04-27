@@ -16,15 +16,69 @@ from sqlalchemy.exc import IntegrityError
 import openai
 import uuid
 from flask import current_app
+from google.cloud import storage
+from google.oauth2 import service_account
+import json
 
 UPLOAD_FOLDER = 'static/generated'
-
-
 
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
+# Функция инициализации клиента GCS
+def get_gcs_client():
+    # Попытка получить учётные данные из переменной окружения
+    credentials_json = os.getenv('GOOGLE_CREDENTIALS')
+    if credentials_json:
+        try:
+            credentials_info = json.loads(credentials_json)
+            credentials = service_account.Credentials.from_service_account_info(credentials_info)
+            return storage.Client(credentials=credentials)
+        except Exception as e:
+            print(f"Error parsing GCS credentials from env var: {e}")
+    
+    # Если не удалось получить из переменной, используем стандартный путь
+    try:
+        return storage.Client()
+    except Exception as e:
+        print(f"Error initializing GCS client: {e}")
+        return None
+
+# Функция загрузки в GCS
+def upload_to_gcs(file_bytes, filename, content_type='image/png'):
+    client = get_gcs_client()
+    if not client:
+        print("Failed to initialize GCS client")
+        return None
+        
+    try:
+        bucket_name = os.getenv('GCS_BUCKET_NAME')
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(filename)
+        
+        # Загрузка файла
+        blob.upload_from_string(
+            file_bytes,
+            content_type=content_type
+        )
+        
+        # Делаем файл публично доступным
+        blob.make_public()
+        
+        # Возвращаем публичный URL
+        return blob.public_url
+    except Exception as e:
+        print(f"Error uploading to GCS: {e}")
+        return None
+
+# Функция логирования операций с GCS
+def log_gcs_operation(operation, path, success, error=None):
+    log_message = f"[GCS] {operation} - Path: {path} - Success: {success}"
+    if error:
+        log_message += f" - Error: {error}"
+    print(log_message)
+    return log_message
 
 MEME_PROMPTS = [
     "A meme about struggles of student life",
@@ -143,17 +197,20 @@ def generate_meme():
             
             if image_data:
                 image_filename = f"ai_meme_{int(time.time())}.png"
-                save_path = os.path.join('app', 'static', 'generated', image_filename)
                 
-                os.makedirs(os.path.dirname(save_path), exist_ok=True)
-                
-                print(f"Saving image to: {save_path}")
-                
+                # Декодируем изображение
                 image_bytes = base64.b64decode(image_data)
-                with open(save_path, "wb") as f:
-                    f.write(image_bytes)
                 
-                image_url = f"/static/generated/{image_filename}"
+                # Загружаем в GCS вместо локальной файловой системы
+                image_url = upload_to_gcs(image_bytes, f"generated/{image_filename}")
+                
+                if not image_url:
+                    log_gcs_operation("Upload", f"generated/{image_filename}", False, "Failed to upload")
+                    return jsonify({
+                        "error": "Failed to upload image to cloud storage"
+                    }), 500
+                
+                log_gcs_operation("Upload", f"generated/{image_filename}", True)
                 
                 return jsonify({
                     "imageUrl": image_url,
@@ -207,20 +264,19 @@ def batch_generate_memes():
                     
                     if image_data:
                         image_filename = f"ai_meme_{int(time.time())}_{_}.png"
-                        save_path = os.path.join('app', 'static', 'generated', image_filename)
                         
-                        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-                        
+                        # Декодируем и загружаем в GCS
                         image_bytes = base64.b64decode(image_data)
-                        with open(save_path, "wb") as f:
-                            f.write(image_bytes)
+                        image_url = upload_to_gcs(image_bytes, f"generated/{image_filename}")
                         
-                        image_url = f"/static/generated/{image_filename}"
-                        
-                        generated_memes_cache[cache_key].append({
-                            "imageUrl": image_url,
-                            "title": f"AI Meme: {prompt.split(':')[-1] if ':' in prompt else prompt}"
-                        })
+                        if image_url:
+                            log_gcs_operation("Batch Upload", f"generated/{image_filename}", True)
+                            generated_memes_cache[cache_key].append({
+                                "imageUrl": image_url,
+                                "title": f"AI Meme: {prompt.split(':')[-1] if ':' in prompt else prompt}"
+                            })
+                        else:
+                            log_gcs_operation("Batch Upload", f"generated/{image_filename}", False, "Failed to upload")
             
             time.sleep(1)
         
@@ -400,7 +456,7 @@ def get_user_stats():
                 'likes': stats.likes_count,
                 'dislikes': stats.dislikes_count,
                 'favorites': stats.favorites_count,
-                'total_swipes': stats.likes_count + stats.dislikes_count ,
+                'total_swipes': stats.likes_count + stats.dislikes_count,
                 'last_updated': stats.last_updated.isoformat() if stats.last_updated else None
             }
         })
@@ -534,8 +590,6 @@ def get_user_matches():
             "details": str(e)
         }), 500
 
-
-
 @main.route('/meme_generator')
 def meme_generator():
     return render_template('generator.html')
@@ -606,15 +660,20 @@ def upload_meme():
         return jsonify({'error': 'No file provided'}), 400
     
     meme_file = request.files['meme']
-
-    upload_dir = os.path.join(current_app.root_path, 'static', 'generated')
-
     
+    # Создаем уникальное имя файла
     filename = f"meme_{uuid.uuid4().hex}.png"
-    filepath = os.path.join(UPLOAD_FOLDER, filename)
-    meme_file.save(filepath)
     
-    relative_path = f"/static/generated/{filename}"
-    meme_url = request.host_url.rstrip('/') + relative_path
-
-    return jsonify({'meme_url': meme_url})
+    # Читаем содержимое файла
+    file_bytes = meme_file.read()
+    
+    # Загружаем в GCS
+    image_url = upload_to_gcs(file_bytes, f"generated/{filename}", meme_file.content_type)
+    
+    if not image_url:
+        log_gcs_operation("Upload", f"generated/{filename}", False, "Failed to upload user meme")
+        return jsonify({'error': 'Failed to upload image to cloud storage'}), 500
+    
+    log_gcs_operation("Upload", f"generated/{filename}", True, "User meme uploaded")
+    
+    return jsonify({'meme_url': image_url})
