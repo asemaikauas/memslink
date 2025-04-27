@@ -26,9 +26,7 @@ load_dotenv()
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
-# Функция инициализации клиента GCS
 def get_gcs_client():
-    # Попытка получить учётные данные из переменной окружения
     credentials_json = os.getenv('GOOGLE_CREDENTIALS')
     if credentials_json:
         try:
@@ -38,14 +36,12 @@ def get_gcs_client():
         except Exception as e:
             print(f"Error parsing GCS credentials from env var: {e}")
     
-    # Если не удалось получить из переменной, используем стандартный путь
     try:
         return storage.Client()
     except Exception as e:
         print(f"Error initializing GCS client: {e}")
         return None
 
-# Функция загрузки в GCS
 def upload_to_gcs(file_bytes, filename, content_type='image/png'):
     client = get_gcs_client()
     if not client:
@@ -57,22 +53,18 @@ def upload_to_gcs(file_bytes, filename, content_type='image/png'):
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(filename)
         
-        # Загрузка файла
         blob.upload_from_string(
             file_bytes,
             content_type=content_type
         )
         
-        # Делаем файл публично доступным
         blob.make_public()
         
-        # Возвращаем публичный URL
         return blob.public_url
     except Exception as e:
         print(f"Error uploading to GCS: {e}")
         return None
 
-# Функция логирования операций с GCS
 def log_gcs_operation(operation, path, success, error=None):
     log_message = f"[GCS] {operation} - Path: {path} - Success: {success}"
     if error:
@@ -196,12 +188,14 @@ def generate_meme():
             image_data = result['data'][0].get('b64_json')
             
             if image_data:
+                return jsonify({
+                    "imageUrl": f"data:image/png;base64,{image_data}",
+                    "title": f"AI Meme: {prompt.split(':')[-1] if ':' in prompt else prompt}"
+                })
                 image_filename = f"ai_meme_{int(time.time())}.png"
                 
-                # Декодируем изображение
                 image_bytes = base64.b64decode(image_data)
                 
-                # Загружаем в GCS вместо локальной файловой системы
                 image_url = upload_to_gcs(image_bytes, f"generated/{image_filename}")
                 
                 if not image_url:
@@ -216,6 +210,8 @@ def generate_meme():
                     "imageUrl": image_url,
                     "title": f"AI Meme: {prompt.split(':')[-1] if ':' in prompt else prompt}"
                 })
+                
+
         
         return jsonify({
             "error": "No image data returned from API"
@@ -234,7 +230,7 @@ def generate_meme():
 def batch_generate_memes():
     try:
         count = int(request.args.get('count', 5))
-        count = min(count, 10) 
+        count = min(count, 2) 
         
         cache_key = str(int(time.time()) // 3600)  
         generated_memes_cache[cache_key] = []
