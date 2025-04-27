@@ -12,8 +12,8 @@ def create_app():
     app = Flask(__name__)
 
     app.config['SECRET_KEY'] = 'nfactorial-2025'
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:ad7Vgy26@localhost/memesdb'
- 
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+
     db.init_app(app)
 
     login_manager = LoginManager()
