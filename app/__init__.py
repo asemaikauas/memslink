@@ -28,10 +28,18 @@ def create_app():
         return User.query.get(int(user_id))
 
 
+
     from .auth import auth as auth_blueprint
     app.register_blueprint(auth_blueprint)
 
     from .main import main as main_blueprint
     app.register_blueprint(main_blueprint)
+
+    @app.route('/create_tables')
+    def create_tables():
+        with app.app_context():
+            db.create_all()
+        return "✅ Tables created successfully!"
+
 
     return app
