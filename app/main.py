@@ -100,17 +100,17 @@ def swipe():
 @login_required
 def generate_meme():
     try:
-        cache_key = str(int(time.time()) // 3600)  
-        
+        cache_key = str(int(time.time()) // 3600)  # Cache per hour
+
         if cache_key in generated_memes_cache:
             cached_memes = generated_memes_cache[cache_key]
             if cached_memes:
                 meme = cached_memes.pop(0)
                 return jsonify(meme)
-        
+
         prompt = random.choice(MEME_PROMPTS)
         print(f"Generating meme with prompt: {prompt}")
-        
+
         response = requests.post(
             "https://api.openai.com/v1/images/generations",
             headers={
@@ -125,7 +125,7 @@ def generate_meme():
                 "response_format": "b64_json"
             }
         )
-        
+
         if response.status_code != 200:
             print(f"OpenAI API error: {response.status_code}")
             print(response.text)
@@ -133,42 +133,46 @@ def generate_meme():
                 "error": "Failed to generate meme",
                 "status": response.status_code
             }), 500
-        
+
         result = response.json()
-        
+
         if 'data' in result and len(result['data']) > 0:
             image_data = result['data'][0].get('b64_json')
-            
+
             if image_data:
+                # Use /tmp/generated instead of static/
+                upload_dir = '/tmp/generated'
+                os.makedirs(upload_dir, exist_ok=True)
+
                 image_filename = f"ai_meme_{int(time.time())}.png"
-                save_path = os.path.join('app', 'static', 'generated', image_filename)
-                
-                os.makedirs(os.path.dirname(save_path), exist_ok=True)
-                
-                print(f"Saving image to: {save_path}")
-                
+                save_path = os.path.join(upload_dir, image_filename)
+
+                print(f"Saving AI-generated image to: {save_path}")
+
                 image_bytes = base64.b64decode(image_data)
                 with open(save_path, "wb") as f:
                     f.write(image_bytes)
-                
-                image_url = f"/static/generated/{image_filename}"
-                
+
+                # Now serve from /uploads/ instead of /static/
+                image_url = f"/uploads/{image_filename}"
+
                 return jsonify({
                     "imageUrl": image_url,
                     "title": f"AI Meme: {prompt.split(':')[-1] if ':' in prompt else prompt}"
                 })
-        
+
         return jsonify({
             "error": "No image data returned from API"
         }), 500
-        
+
     except Exception as e:
         print(f"Error generating meme: {str(e)}")
-        print(traceback.format_exc())  
+        print(traceback.format_exc())
         return jsonify({
             "error": "Failed to generate meme",
             "details": str(e)
         }), 500
+
     
 @main.route('/api/batch-generate-memes', methods=['GET'])
 @login_required
