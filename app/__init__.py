@@ -40,6 +40,10 @@ def create_app():
         with app.app_context():
             db.create_all()
         return "✅ Tables created successfully!"
+    @app.route('/static/<path:filename>')
+    def static_files(filename):
+        return send_from_directory('static', filename)
+
 
 
     return app
