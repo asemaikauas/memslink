@@ -217,7 +217,7 @@ def batch_generate_memes():
                         with open(save_path, "wb") as f:
                             f.write(image_bytes)
                         
-                        image_url = f"/static/generated/{image_filename}"
+                        image_url = f"/uploads/{image_filename}"
                         
                         generated_memes_cache[cache_key].append({
                             "imageUrl": image_url,
