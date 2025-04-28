@@ -53,17 +53,100 @@ async function prefetchAIMemes() {
   }
 }
 
+function showLoading(card, isFirst = false) {
+  hideLoading(card);
+  
+  const overlay = document.createElement('div');
+  overlay.className = 'image-loading-overlay';
+  
+  const spinner = document.createElement('div');
+  spinner.className = 'loading-spinner';
+  
+  const progressContainer = document.createElement('div');
+  progressContainer.className = 'loading-progress-container';
+  
+  const progressBar = document.createElement('div');
+  progressBar.className = 'loading-progress-bar';
+  progressBar.style.width = '0%';
+  progressContainer.appendChild(progressBar);
+  
+  const loadingText = document.createElement('div');
+  loadingText.className = 'loading-text';
+  loadingText.innerText = isFirst ? 
+    'Первое изображение загружается дольше остальных. Пожалуйста, подождите...' : 
+    'Загрузка изображения...';
+  
+  overlay.appendChild(spinner);
+  overlay.appendChild(progressContainer);
+  overlay.appendChild(loadingText);
+  
+  card.appendChild(overlay);
+  
+  let progress = 0;
+  const duration = isFirst ? 16000 : 10000; 
+  const step = 500; 
+  const increment = step / duration * 100;
+  
+  const interval = setInterval(() => {
+    progress += increment;
+    if (progress > 100) progress = 100;
+    
+    progressBar.style.width = progress + '%';
+    
+    if (progress >= 100) {
+      clearInterval(interval);
+      overlay.classList.add('fade-out');
+      setTimeout(() => {
+        if (overlay.parentNode === card) {
+          card.removeChild(overlay);
+        }
+      }, 300);
+    }
+  }, step);
+  
+  overlay.dataset.intervalId = interval;
+}
+
+function hideLoading(card) {
+  const overlay = card.querySelector('.image-loading-overlay');
+  if (!overlay) return;
+  
+  if (overlay.dataset.intervalId) {
+    clearInterval(overlay.dataset.intervalId);
+  }
+  
+  overlay.classList.add('fade-out');
+  
+  setTimeout(() => {
+    if (overlay.parentNode === card) {
+      card.removeChild(overlay);
+    }
+  }, 300);
+}
+
 
 function loadNewMeme() {
   const card = document.getElementById('current-meme'),
         img = card.querySelector('.meme-image'),
         title = document.getElementById('meme-title');
-    if (!img.src.includes('loading.gif')) {
+  
+  const isFirstLoad = !img.src || img.src.includes('loading.gif') || shownMemesCount === 0;
+  
+  if (!img.src.includes('loading.gif')) {
     const originalSrc = img.src;
     img.setAttribute('data-original-src', originalSrc);
   }
 
   gsap.set(card, { x:0, y:0, rotation:0, opacity:1, boxShadow:'0 10px 20px rgba(0,0,0,.1)' });
+  
+  showLoading(card, isFirstLoad);
+  
+  function onImageLoaded() {
+    hideLoading(card);
+    img.removeEventListener('load', onImageLoaded);
+  }
+  img.addEventListener('load', onImageLoaded);
+  
   if (shownMemesCount < curatedMemes.length) {
     const meme = curatedMemes[shownMemesCount];
     img.src = meme.src;
@@ -89,12 +172,12 @@ function loadNewMeme() {
       card.setAttribute('data-id', String(fallbackMeme.id));
       animateNewCard(card);
       toast('Could not load AI meme, showing you a curated one instead', 'warning');
+      hideLoading(card);
     });
     shownMemesCount++;
-
-
   }
 }
+
 function animateNewCard(card) {
   gsap.fromTo(card, 
     { opacity:0, scale:0.9 }, 
